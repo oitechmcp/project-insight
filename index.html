@@ -1,0 +1,1223 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>oiTech Code Insight</title>
+        <link rel="shortcut icon" href="C:\Users\sajid ms\Downloads\XPTTn_UES_meErBf4LOr9Q.jpg" type="image/x-icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#ffba08',
+                            100: '#faa307',
+                            200: '#f48c06',
+                            300: '#e85d04',
+                            400: '#dc2f02',
+                            500: '#d00000',
+                            600: '#9d0208',
+                            700: '#6a040f',
+                            800: '#370617',
+                            900: '#03071e'
+                        },
+                        secondary: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            200: '#ddd6fe',
+                            300: '#c4b5fd',
+                            400: '#a78bfa',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                            800: '#5b21b6',
+                            900: '#4c1d95'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .folder-tree ul {
+            display: none;
+        }
+        .folder-tree > ul {
+            display: block;
+        }
+        .node-icon {
+            cursor: pointer;
+        }
+        .drag-over {
+            border-color: #d00000;
+            background-color: rgba(208, 0, 0, 0.1);
+        }
+        .tooltip {
+            visibility: hidden;
+            background-color: #03071e;
+            color: #fff;
+            text-align: center;
+            border-radius: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            position: absolute;
+            z-index: 10;
+            font-size: 0.75rem;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+        }
+        .tooltip-container:hover .tooltip {
+            visibility: visible;
+        }
+        @media (max-width: 640px) {
+            .container {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+    <!-- Header -->
+    <header class="sticky top-0 z-50 bg-white shadow-md">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="bg-light-500 text-white p-2 rounded-lg">
+                    <img src="C:\Users\sajid ms\Downloads\XPTTn_UES_meErBf4LOr9Q.png" width="50" height="50">
+                </div>
+                <h1 class="text-2xl font-bold text-gray-900">Tech <span class="text-primary-500">Code Insight</span></h1>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button id="menu-toggle" class="sm:hidden text-gray-900 p-2" aria-label="Toggle Menu">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                <nav id="nav-menu" class="hidden sm:flex items-center space-x-3">
+                    <div class="tooltip-container relative">
+                        <a href="#apps" class="text-gray-900 p-2" aria-label="Apps">
+                            <i class="fas fa-cubes text-xl"></i>
+                        </a>
+                        <span class="tooltip">Apps</span>
+                    </div>
+                    <div class="tooltip-container relative">
+                        <a href="#about" class="text-gray-900 p-2" aria-label="About">
+                            <i class="fas fa-info-circle text-xl"></i>
+                        </a>
+                        <span class="tooltip">About</span>
+                    </div>
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold">
+                    <img src="C:\Users\sajid ms\Downloads\XPTTn_UES_meErBf4LOr9Q.png" width="50" height="50">
+                    </div>
+                </nav>
+            </div>
+        </div>
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden sm:hidden bg-white border-t shadow-md">
+            <div class="container mx-auto px-4 py-2 flex flex-col space-y-2">
+                <a href="#apps" class="text-gray-900 py-2 flex items-center">
+                    <i class="fas fa-cubes mr-2"></i> Apps
+                </a>
+                <a href="#about" class="text-gray-900 py-2 flex items-center">
+                    <i class="fas fa-info-circle mr-2"></i> About
+                </a>
+                <div class="flex items-center space-x-2 py-2">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center text-white font-semibold">JS</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-4 py-8">
+        <!-- Loading Indicator -->
+        <div id="loading-indicator" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white p-4 rounded-lg flex items-center space-x-2">
+                <i class="fas fa-spinner fa-spin text-primary-500 text-2xl"></i>
+                <p class="text-gray-900">Analyzing Project...</p>
+            </div>
+        </div>
+
+        <!-- Project Selection Card -->
+        <div class="grid grid-cols-1 gap-6 mb-8">
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">Analyze Your Project</h2>
+                <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+                    <div id="drop-zone" class="flex-1 border-2 border-dashed border-gray-300 rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer transition-colors duration-200">
+                        <i class="fas fa-folder-open text-4xl text-primary-500 mb-3"></i>
+                        <p class="text-lg font-medium text-gray-900 mb-1">Drag & drop project folder</p>
+                        <p class="text-gray-500">Or click to browse</p>
+                        <input type="file" id="folder-input" webkitdirectory directory multiple class="hidden" aria-label="Upload Project Folder" />
+                    </div>
+                    
+                    <div class="bg-gray-50 rounded-lg p-4 flex flex-col justify-center w-full md:w-1/3">
+                        <div class="mb-4">
+                            <p class="text-gray-900 font-medium mb-1">Recent Projects</p>
+                            <div id="recent-projects" class="space-y-2"></div>
+                        </div>
+                        <button class="mt-auto bg-gray-800 text-white py-2 px-4 rounded-lg flex items-center justify-center" aria-label="View Analysis History">
+                            <i class="fas fa-history mr-2"></i>
+                            Analysis History
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <p class="text-gray-900 font-medium mb-2">Or analyze from a cloud service:</p>
+                    <div class="flex space-x-2">
+                        <input type="text" id="cloud-url" class="flex-1 border border-gray-300 rounded-lg p-2" placeholder="e.g., https://github.com/user/repo" aria-label="Cloud Service URL">
+                        <button id="analyze-cloud" class="bg-primary-500 text-white py-2 px-4 rounded-lg" aria-label="Analyze Cloud Project">Analyze</button>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-1">Supported: GitHub (public repositories). More coming soon!</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Dashboard -->
+        <div id="dashboard" class="hidden">
+            <div class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900">Project Dashboard</h2>
+                    <div class="flex items-center mt-1">
+                        <i class="fas fa-folder text-primary-500 mr-2"></i>
+                        <p class="text-gray-700 font-mono text-sm" id="project-path"></p>
+                    </div>
+                </div>
+                <div class="flex space-x-3 mt-4 sm:mt-0">
+                    <div class="relative tooltip-container">
+                        <select id="export-format" class="bg-white text-gray-900 border border-gray-300 py-2 px-4 rounded-lg" aria-label="Select Export Format">
+                            <option value="pdf">Export as PDF</option>
+                            <option value="json">Export as JSON</option>
+                        </select>
+                        <span class="tooltip">Choose export format</span>
+                    </div>
+                    <button id="export-btn" class="bg-white text-gray-900 border border-gray-300 py-2 px-4 rounded-lg flex items-center" aria-label="Export Report">
+                        <i class="fas fa-file-export mr-2"></i>
+                        Export
+                    </button>
+                    <button id="re-analyze" class="bg-primary-500 text-white py-2 px-4 rounded-lg flex items-center" aria-label="Re-analyze Project">
+                        <i class="fas fa-sync mr-2"></i>
+                        Re-analyze
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Project Description -->
+            <div class="bg-white rounded-xl shadow p-4 sm:p-6 mb-8">
+                <h3 class="text-lg font-bold text-gray-900 mb-4">Project Description</h3>
+                <div id="project-description" class="text-gray-700 prose"></div>
+            </div>
+            
+            <!-- Stats Overview -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div class="bg-white rounded-xl shadow p-4 sm:p-6">
+                    <div class="flex justify-between">
+                        <div>
+                            <p class="text-gray-500">Total Files</p>
+                            <p class="text-2xl sm:text-3xl font-bold text-gray-900 mt-1" id="total-files">0</p>
+                        </div>
+                        <div class="bg-primary-100 w-12 h-12 rounded-full flex items-center justify-center">
+                            <i class="fas fa-file-alt text-primary-500 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow p-4 sm:p-6">
+                    <div class="flex justify-between">
+                        <div>
+                            <p class="text-gray-500">Lines of Code</p>
+                            <p class="text-2xl sm:text-3xl font-bold text-gray-900 mt-1" id="total-loc">0</p>
+                        </div>
+                        <div class="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center">
+                            <i class="fas fa-code text-green-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow p-4 sm:p-6">
+                    <div class="flex justify-between">
+                        <div>
+                            <p class="text-gray-500">Languages Used</p>
+                            <p class="text-2xl sm:text-3xl font-bold text-gray-900 mt-1" id="total-languages">0</p>
+                        </div>
+                        <div class="bg-purple-100 w-12 h-12 rounded-full flex items-center justify-center">
+                            <i class="fas fa-language text-purple-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow p-4 sm:p-6">
+                    <div class="flex justify-between">
+                        <div>
+                            <p class="text-gray-500">Analysis Time</p>
+                            <p class="text-2xl sm:text-3xl font-bold text-gray-900 mt-1" id="analysis-time">0s</p>
+                        </div>
+                        <div class="bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center">
+                            <i class="fas fa-clock text-blue-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Charts Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow p-4 sm:p-6">
+                    <div class="flex justify-between items-start mb-4 sm:mb-6">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">Language Distribution</h3>
+                            <p class="text-gray-500 text-sm">Breakdown by primary language</p>
+                        </div>
+                        <button class="text-primary-500 hover:bg-gray-100 p-2 rounded-md" aria-label="Expand Language Chart">
+                            <i class="fas fa-expand-alt"></i>
+                        </button>
+                    </div>
+                    <div class="h-64 sm:h-72">
+                        <canvas id="languageChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow p-4 sm:p-6">
+                    <div class="flex justify-between items-start mb-4 sm:mb-6">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">File Type Breakdown</h3>
+                            <p class="text-gray-500 text-sm">Including images and other types</p>
+                        </div>
+                        <button class="text-primary-500 hover:bg-gray-100 p-2 rounded-md" aria-label="Expand File Type Chart">
+                            <i class="fas fa-expand-alt"></i>
+                        </button>
+                    </div>
+                    <div class="h-64 sm:h-72">
+                        <canvas id="fileTypeChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow p-4 sm:p-6">
+                    <div class="flex justify-between items-start mb-4 sm:mb-6">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">Lines of Code per File</h3>
+                            <p class="text-gray-500 text-sm">Top 10 files by line count</p>
+                        </div>
+                        <button class="text-primary-500 hover:bg-gray-100 p-2 rounded-md" aria-label="Expand LOC Chart">
+                            <i class="fas fa-expand-alt"></i>
+                        </button>
+                    </div>
+                    <div class="h-64 sm:h-72">
+                        <canvas id="locChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow p-4 sm:p-6">
+                    <div class="flex justify-between items-start mb-4 sm:mb-6">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">File Size Distribution</h3>
+                            <p class="text-gray-500 text-sm">Histogram of file sizes (KB)</p>
+                        </div>
+                        <button class="text-primary-500 hover:bg-gray-100 p-2 rounded-md" aria-label="Expand File Size Chart">
+                            <i class="fas fa-expand-alt"></i>
+                        </button>
+                    </div>
+                    <div class="h-64 sm:h-72">
+                        <canvas id="fileSizeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Additional Visualizations -->
+            <div class="grid grid-cols-1 gap-4 sm:gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow p-4 sm:p-6">
+                    <div class="flex justify-between items-start mb-4 sm:mb-6">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">Activity Timeline</h3>
+                            <p class="text-gray-500 text-sm">File modification patterns over last 30 days</p>
+                        </div>
+                        <button class="text-primary-500 hover:bg-gray-100 p-2 rounded-md" aria-label="Expand Activity Chart">
+                            <i class="fas fa-expand-alt"></i>
+                        </button>
+                    </div>
+                    <div class="h-72 sm:h-80">
+                        <canvas id="activityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Lines of Code per File Section -->
+            <div class="bg-white rounded-xl shadow p-4 sm:p-6 mb-8">
+                <h3 class="text-lg font-bold text-gray-900 mb-4">Lines of Code per File</h3>
+                <div id="loc-per-file" class="space-y-1 text-sm"></div>
+            </div>
+            
+            <!-- Project Structure & Complexity Analysis -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
+                <!-- Project Tree Card (Expanded) -->
+                <div class="bg-white rounded-xl shadow p-4 sm:p-6 lg:col-span-2">
+                    <div class="flex justify-between items-center mb-4 sm:mb-6">
+                        <h3 class="text-lg font-bold text-gray-900">Project Structure</h3>
+                        <div class="flex space-x-2">
+                            <div class="relative tooltip-container">
+                                <input type="text" id="file-search" class="border border-gray-300 rounded-lg p-1 text-sm" placeholder="Search files..." aria-label="Search Files">
+                                <span class="tooltip">Search project files</span>
+                            </div>
+                            <button class="text-gray-500 hover:text-primary-500 p-1 rounded-md" aria-label="Compress Project View">
+                                <i class="fas fa-compress-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="folder-tree max-h-80 sm:max-h-96 overflow-y-auto text-sm font-mono" id="folder-tree">
+                        <ul></ul>
+                    </div>
+                </div>
+                
+                <!-- Complexity Card -->
+                <div class="bg-white rounded-xl shadow p-4 sm:p-6">
+                    <div class="flex justify-between items-center mb-4 sm:mb-6">
+                        <h3 class="text-lg font-bold text-gray-900">Complexity Analysis</h3>
+                        <div class="text-xs bg-gray-100 px-3 py-1 rounded-full">
+                            <span class="text-gray-600">Cyclomatic Complexity</span>
+                        </div>
+                    </div>
+                    
+                    <div id="complexity-analysis" class="space-y-4 text-sm"></div>
+                    
+                    <div class="mt-6 border-t pt-4">
+                        <h4 class="text-sm font-medium text-gray-900 mb-3">Recommendations</h4>
+                        <ul id="recommendations" class="space-y-2 text-sm text-gray-700"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t py-6">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <h2 class="text-xl font-bold text-gray-900 mb-1">oiTech <span class="text-primary-500">Code Insight</span></h2>
+                    <p class="text-gray-600 text-sm">Project analysis & visualization toolkit</p>
+                </div>
+                
+                <div class="flex space-x-4">
+                    <a href="https://whatsapp.com/channel/0029Vb62Stb7tkj7Gn3QMF2w" target="_blank" class="text-gray-500 hover:text-primary-500" aria-label="WhatsApp">
+                        <i class="fab fa-whatsapp text-lg"></i>
+                    </a>
+                    <a href="https://www.linkedin.com/company/oitech-mcp/" target="_blank" class="text-gray-500 hover:text-primary-500" aria-label="LinkedIn">
+                        <i class="fab fa-linkedin text-lg"></i>
+                    </a>
+                    <a href="https://www.instagram.com/oitech.mcp/" target="_blank" class="text-gray-500 hover:text-primary-500" aria-label="Instagram">
+                        <i class="fab fa-instagram text-lg"></i>
+                    </a>
+                    <a href="https://github.com/oitechmcp" target="_blank" class="text-gray-500 hover:text-primary-500" aria-label="GitHub">
+                        <i class="fab fa-github text-lg"></i>
+                    </a>
+                    <a href="https://x.com/oitechmcp" target="_blank" class="text-gray-500 hover:text-primary-500" aria-label="Twitter">
+                        <i class="fab fa-twitter text-lg"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="border-t mt-6 pt-6 text-sm text-gray-500 text-center">
+                <p>© 2025 oiTech Code Insight. All analysis performed locally - your code never leaves your machine.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Menu toggle for mobile
+        const menuToggle = document.getElementById('menu-toggle');
+        const mobileMenu = document.getElementById('mobile-menu');
+        menuToggle.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+        });
+
+        // Chart instances
+        let charts = {
+            language: null,
+            fileType: null,
+            loc: null,
+            fileSize: null,
+            activity: null
+        };
+
+        // Project data
+        let projectData = {
+            files: [],
+            folderPath: '',
+            analysisTime: 0,
+            recentProjects: [],
+            folderStructure: {},
+            description: ''
+        };
+
+        // File extension to type mapping
+        const fileTypes = {
+            '.js': { type: 'Code', language: 'JavaScript', icon: 'fas fa-file-code text-primary-400' },
+            '.jsx': { type: 'Code', language: 'JavaScript', icon: 'fas fa-file-code text-primary-400' },
+            '.ts': { type: 'Code', language: 'TypeScript', icon: 'fas fa-file-code text-primary-400' },
+            '.tsx': { type: 'Code', language: 'TypeScript', icon: 'fas fa-file-code text-primary-400' },
+            '.html': { type: 'Code', language: 'HTML', icon: 'fas fa-file-code text-primary-400' },
+            '.css': { type: 'Code', language: 'CSS', icon: 'fas fa-file-code text-primary-400' },
+            '.md': { type: 'Documentation', language: 'Markdown', icon: 'fas fa-file-text text-green-400' },
+            '.json': { type: 'Config', language: 'JSON', icon: 'fas fa-file-alt text-purple-400' },
+            '.yaml': { type: 'Config', language: 'YAML', icon: 'fas fa-file-alt text-purple-400' },
+            '.yml': { type: 'Config', language: 'YAML', icon: 'fas fa-file-alt text-purple-400' },
+            '.png': { type: 'Image', language: null, icon: 'fas fa-image text-pink-400' },
+            '.jpg': { type: 'Image', language: null, icon: 'fas fa-image text-pink-400' },
+            '.jpeg': { type: 'Image', language: null, icon: 'fas fa-image text-pink-400' },
+            '.svg': { type: 'Image', language: null, icon: 'fas fa-image text-pink-400' },
+            '.gif': { type: 'Image', language: null, icon: 'fas fa-image text-pink-400' },
+            '.test.js': { type: 'Tests', language: 'JavaScript', icon: 'fas fa-file-code text-primary-400' },
+            '.spec.js': { type: 'Tests', language: 'JavaScript', icon: 'fas fa-file-code text-primary-400' }
+        };
+
+        // Excluded directories
+        const excludedDirs = ['.git', 'node_modules', 'build', 'dist'];
+
+        // DOM elements
+        const dropZone = document.getElementById('drop-zone');
+        const folderInput = document.getElementById('folder-input');
+        const dashboard = document.getElementById('dashboard');
+        const analyzeCloudBtn = document.getElementById('analyze-cloud');
+        const cloudUrlInput = document.getElementById('cloud-url');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const fileSearch = document.getElementById('file-search');
+        const exportBtn = document.getElementById('export-btn');
+        const exportFormat = document.getElementById('export-format');
+        const reAnalyzeBtn = document.getElementById('re-analyze');
+
+        // Event listeners for drag and drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            dropZone.classList.add('drag-over');
+        }
+
+        function unhighlight() {
+            dropZone.classList.remove('drag-over');
+        }
+
+        dropZone.addEventListener('drop', handleDrop, false);
+
+        folderInput.addEventListener('change', () => {
+            processFolder(folderInput.files);
+        });
+
+        dropZone.addEventListener('click', () => {
+            folderInput.click();
+        });
+
+        analyzeCloudBtn.addEventListener('click', () => {
+            const url = cloudUrlInput.value.trim();
+            if (url) {
+                processCloudProject(url);
+            } else {
+                alert('Please enter a cloud service URL');
+            }
+        });
+
+        reAnalyzeBtn.addEventListener('click', () => {
+            if (folderInput.files.length > 0) {
+                processFolder(folderInput.files);
+            } else if (cloudUrlInput.value.trim()) {
+                processCloudProject(cloudUrlInput.value.trim());
+            } else {
+                alert('No project selected for re-analysis');
+            }
+        });
+
+        exportBtn.addEventListener('click', () => {
+            const format = exportFormat.value;
+            if (format === 'pdf') {
+                exportToPDF();
+            } else if (format === 'json') {
+                exportToJSON();
+            }
+        });
+
+        fileSearch.addEventListener('input', () => {
+            const query = fileSearch.value.toLowerCase();
+            const treeItems = document.querySelectorAll('.folder-tree li');
+            treeItems.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(query) ? '' : 'none';
+            });
+        });
+
+        function calculateCyclomaticComplexity(code) {
+            let complexity = 1;
+            const patterns = [
+                /if\s*\(/g,
+                /else\s*if\s*\(/g,
+                /while\s*\(/g,
+                /for\s*\(/g,
+                /case\s*[^:]+:/g,
+                /&&/g,
+                /\|\|/g,
+                /\?/g
+            ];
+            patterns.forEach(pattern => {
+                const matches = (code.match(pattern) || []).length;
+                complexity += matches;
+            });
+            return complexity;
+        }
+
+        function getRecommendations(complexity, fileName) {
+            const recommendations = [];
+            if (complexity > 20) {
+                recommendations.push(`Break down large functions in ${fileName}`);
+                recommendations.push(`Reduce nested conditionals in ${fileName}`);
+            } else if (complexity > 10) {
+                recommendations.push(`Review complex logic in ${fileName}`);
+                recommendations.push(`Consider extracting utility functions from ${fileName}`);
+            }
+            return recommendations;
+        }
+
+        async function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            await processFolder(files);
+        }
+
+        async function processFolder(files) {
+            if (!files.length) return;
+
+            loadingIndicator.classList.remove('hidden');
+            const startTime = performance.now();
+            projectData.files = [];
+            const folderStructure = {};
+            let totalLOC = 0;
+            let description = '';
+
+            const excludePatterns = excludedDirs;
+
+            for (const file of files) {
+                const path = file.webkitRelativePath || file.path;
+                if (excludePatterns.some(pattern => path.includes(pattern))) continue;
+
+                const extension = path.slice(path.lastIndexOf('.')).toLowerCase();
+                const fileTypeInfo = fileTypes[extension] || { type: 'Other', language: null, icon: 'fas fa-file text-gray-400' };
+                
+                const text = await file.text();
+                const lines = text.split('\n').length;
+                const size = file.size / 1024; // KB
+                const complexity = fileTypeInfo.type === 'Code' ? calculateCyclomaticComplexity(text) : 0;
+
+                projectData.files.push({
+                    path,
+                    name: path.split('/').pop(),
+                    type: fileTypeInfo.type,
+                    language: fileTypeInfo.language,
+                    icon: fileTypeInfo.icon,
+                    size,
+                    lines,
+                    complexity,
+                    content: text
+                });
+
+                totalLOC += lines;
+
+                // Check for README.md or text file for description
+                if (path.toLowerCase().endsWith('readme.md') || path.toLowerCase().endsWith('.txt')) {
+                    description = text;
+                }
+
+                // Build folder structure
+                const pathParts = path.split('/');
+                let current = folderStructure;
+                for (let i = 0; i < pathParts.length - 1; i++) {
+                    const part = pathParts[i];
+                    if (!current[part]) {
+                        current[part] = { type: 'folder', children: {} };
+                    }
+                    current = current[part].children;
+                }
+                current[pathParts[pathParts.length - 1]] = { type: 'file', ...fileTypeInfo, size, lines, complexity, content: text, path };
+            }
+
+            projectData.folderPath = files[0].webkitRelativePath.split('/')[0];
+            projectData.analysisTime = ((performance.now() - startTime) / 1000).toFixed(2);
+            projectData.folderStructure = folderStructure;
+            projectData.description = description;
+
+            updateDashboard();
+            updateFolderTree(folderStructure);
+            updateCharts();
+            updateComplexityAnalysis();
+            updateRecentProjects();
+            updateProjectDescription();
+            updateLocPerFile();
+
+            loadingIndicator.classList.add('hidden');
+            dashboard.classList.remove('hidden');
+            dashboard.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function extractGitHubInfo(url) {
+            const match = url.match(/https:\/\/github.com\/([^\/]+)\/([^\/]+)/);
+            if (match) {
+                return { user: match[1], repo: match[2] };
+            }
+            return null;
+        }
+
+        async function getGitHubTree(user, repo) {
+            const response = await fetch(`https://api.github.com/repos/${user}/${repo}/git/trees/main?recursive=1`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch repository tree');
+            }
+            const data = await response.json();
+            return data.tree.filter(item => item.type === 'blob'); // only files
+        }
+
+        async function getFileContent(user, repo, path) {
+            const response = await fetch(`https://raw.githubusercontent.com/${user}/${repo}/main/${path}`);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch file: ${path}`);
+            }
+            return await response.text();
+        }
+
+        async function processCloudProject(url) {
+            const githubInfo = extractGitHubInfo(url);
+            if (githubInfo) {
+                try {
+                    loadingIndicator.classList.remove('hidden');
+                    const startTime = performance.now();
+                    const files = await getGitHubTree(githubInfo.user, githubInfo.repo);
+                    const filePromises = files.map(async file => {
+                        const content = await getFileContent(githubInfo.user, githubInfo.repo, file.path);
+                        const extension = file.path.slice(file.path.lastIndexOf('.')).toLowerCase();
+                        const fileTypeInfo = fileTypes[extension] || { type: 'Other', language: null, icon: 'fas fa-file text-gray-400' };
+                        const lines = content.split('\n').length;
+                        const size = content.length / 1024; // approximate size in KB
+                        const complexity = fileTypeInfo.type === 'Code' ? calculateCyclomaticComplexity(content) : 0;
+                        return {
+                            path: file.path,
+                            name: file.path.split('/').pop(),
+                            type: fileTypeInfo.type,
+                            language: fileTypeInfo.language,
+                            icon: fileTypeInfo.icon,
+                            size,
+                            lines,
+                            complexity,
+                            content
+                        };
+                    });
+                    projectData.files = await Promise.all(filePromises);
+                    projectData.folderPath = `${githubInfo.user}/${githubInfo.repo}`;
+                    projectData.analysisTime = ((performance.now() - startTime) / 1000).toFixed(2);
+
+                    // Build folder structure
+                    const folderStructure = {};
+                    projectData.files.forEach(file => {
+                        const pathParts = file.path.split('/');
+                        let current = folderStructure;
+                        for (let i = 0; i < pathParts.length - 1; i++) {
+                            const part = pathParts[i];
+                            if (!current[part]) {
+                                current[part] = { type: 'folder', children: {} };
+                            }
+                            current = current[part].children;
+                        }
+                        current[pathParts[pathParts.length - 1]] = { type: 'file', ...file };
+                    });
+                    projectData.folderStructure = folderStructure;
+
+                    // Check for README.md or text file
+                    const readmeFile = projectData.files.find(file => file.name.toLowerCase() === 'readme.md' || file.name.toLowerCase().endsWith('.txt'));
+                    projectData.description = readmeFile ? readmeFile.content : '';
+
+                    updateDashboard();
+                    updateFolderTree(folderStructure);
+                    updateCharts();
+                    updateComplexityAnalysis();
+                    updateRecentProjects();
+                    updateProjectDescription();
+                    updateLocPerFile();
+
+                    loadingIndicator.classList.add('hidden');
+                    dashboard.classList.remove('hidden');
+                    dashboard.scrollIntoView({ behavior: 'smooth' });
+                } catch (error) {
+                    console.error(error);
+                    alert('Error processing GitHub repository. Ensure it is public and the URL is correct.');
+                    loadingIndicator.classList.add('hidden');
+                }
+            } else {
+                alert('Only GitHub public repositories are supported currently. Please use a valid GitHub URL (e.g., https://github.com/user/repo).');
+            }
+        }
+
+        function updateDashboard() {
+            document.getElementById('project-path').textContent = projectData.folderPath;
+            document.getElementById('total-files').textContent = projectData.files.length;
+            document.getElementById('total-loc').textContent = projectData.files.reduce((sum, file) => sum + file.lines, 0);
+            document.getElementById('total-languages').textContent = new Set(projectData.files.map(f => f.language).filter(l => l)).size;
+            document.getElementById('analysis-time').textContent = `${projectData.analysisTime}s`;
+        }
+
+        function buildFolderTree(structure, depth = 0) {
+            let html = '<ul class="pl-4">';
+            Object.entries(structure).forEach(([name, item]) => {
+                html += '<li>';
+                if (item.type === 'folder') {
+                    html += `<div class="flex items-center cursor-pointer">
+                                <i class="fas fa-folder text-amber-400 mr-2 node-icon"></i>
+                                <span class="font-medium text-gray-900">${name}</span>
+                             </div>`;
+                    html += buildFolderTree(item.children, depth + 1);
+                } else {
+                    html += `<div class="flex items-center">
+                                <i class="${item.icon} mr-2"></i>
+                                <span class="text-gray-700">${name}</span>
+                             </div>`;
+                }
+                html += '</li>';
+            });
+            html += '</ul>';
+            return html;
+        }
+
+        function updateFolderTree(structure) {
+            const folderTree = document.getElementById('folder-tree');
+            folderTree.innerHTML = buildFolderTree(structure);
+
+            // Add click event to toggle folder visibility
+            document.querySelectorAll('.node-icon').forEach(icon => {
+                icon.addEventListener('click', function() {
+                    const ul = this.parentElement.nextElementSibling;
+                    if (ul && ul.tagName === 'UL') {
+                        ul.classList.toggle('hidden');
+                        this.classList.toggle('node-rotate');
+                    }
+                });
+            });
+        }
+
+        function updateComplexityAnalysis() {
+            const complexityAnalysis = document.getElementById('complexity-analysis');
+            const recommendationsList = document.getElementById('recommendations');
+            const codeFiles = projectData.files.filter(f => f.type === 'Code').sort((a, b) => b.complexity - a.complexity).slice(0, 3);
+
+            let html = '';
+            let recommendations = [];
+            codeFiles.forEach(file => {
+                const percentage = Math.min((file.complexity / 25) * 100, 100);
+                const color = file.complexity > 20 ? 'red-500' : file.complexity > 10 ? 'yellow-500' : 'green-500';
+                const message = file.complexity > 20 ? 'High complexity - refactor required' :
+                               file.complexity > 10 ? 'Medium complexity - review suggested' : 'Low complexity - good';
+                html += `
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="text-gray-700 font-mono">${file.name}</span>
+                            <span class="text-gray-500">Score: ${file.complexity}</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-${color} h-2 rounded-full" style="width: ${percentage}%"></div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">${message}</p>
+                    </div>
+                `;
+                recommendations = recommendations.concat(getRecommendations(file.complexity, file.name));
+            });
+
+            complexityAnalysis.innerHTML = html;
+            recommendationsList.innerHTML = recommendations.map(r => `
+                <li class="flex items-start">
+                    <i class="fas fa-info-circle text-primary-500 mt-0.5 mr-2"></i>
+                    <span>${r}</span>
+                </li>
+            `).join('');
+        }
+
+        function updateRecentProjects() {
+            const recentProjects = document.getElementById('recent-projects');
+            recentProjects.innerHTML = projectData.recentProjects.map(path => `
+                <div class="flex items-center space-x-2 mb-2">
+                    <i class="fas fa-folder text-primary-500"></i>
+                    <span class="text-gray-700 text-sm font-mono">${path}</span>
+                </div>
+            `).join('');
+        }
+
+        function updateProjectDescription() {
+            const descriptionDiv = document.getElementById('project-description');
+            if (projectData.description) {
+                // Simple Markdown to HTML conversion
+                let html = projectData.description
+                    .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+                    .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+                    .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+                    .replace(/\*\*(.*)\*\*/gm, '<strong>$1</strong>')
+                    .replace(/\*(.*)\*/gm, '<em>$1</em>')
+                    .replace(/!\[(.*?)\]\((.*?)\)/gm, "<img alt='$1' src='$2' />")
+                    .replace(/\[(.*?)\]\((.*?)\)/gm, "<a href='$2'>$1</a>")
+                    .replace(/\n/g, '<br>');
+                descriptionDiv.innerHTML = html;
+            } else {
+                descriptionDiv.innerHTML = 'No project description found.';
+            }
+        }
+
+        function updateLocPerFile() {
+            const locPerFile = document.getElementById('loc-per-file');
+            const codeFiles = projectData.files.filter(f => f.type === 'Code').sort((a, b) => b.lines - a.lines);
+            locPerFile.innerHTML = codeFiles.map(file => `
+                <div class="flex justify-between">
+                    <span class="font-mono text-gray-700">${file.name}</span>
+                    <span class="text-gray-500">${file.lines} lines</span>
+                </div>
+            `).join('');
+        }
+
+        function updateCharts() {
+            // Destroy existing charts
+            Object.values(charts).forEach(chart => chart?.destroy());
+
+            const colorPalette = ['#ffba08', '#faa307', '#f48c06', '#e85d04', '#dc2f02', '#d00000', '#9d0208', '#6a040f', '#370617', '#03071e'];
+
+            // Language Distribution
+            const languageCounts = {};
+            projectData.files.forEach(file => {
+                if (file.language) {
+                    languageCounts[file.language] = (languageCounts[file.language] || 0) + 1;
+                }
+            });
+
+            charts.language = new Chart(document.getElementById('languageChart').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(languageCounts),
+                    datasets: [{
+                        data: Object.values(languageCounts),
+                        backgroundColor: colorPalette,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                color: '#9ca3af',
+                                font: { size: 11, family: 'Inter' }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // File Type Breakdown
+            const typeCounts = {};
+            projectData.files.forEach(file => {
+                typeCounts[file.type] = (typeCounts[file.type] || 0) + 1;
+            });
+
+            charts.fileType = new Chart(document.getElementById('fileTypeChart').getContext('2d'), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(typeCounts),
+                    datasets: [{
+                        data: Object.values(typeCounts),
+                        backgroundColor: colorPalette,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                color: '#9ca3af',
+                                font: { size: 11, family: 'Inter' }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // LOC per File
+            const topFiles = projectData.files.filter(f => f.type === 'Code').sort((a, b) => b.lines - a.lines).slice(0, 10);
+            charts.loc = new Chart(document.getElementById('locChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: topFiles.map(f => f.name),
+                    datasets: [{
+                        label: 'Lines of Code',
+                        data: topFiles.map(f => f.lines),
+                        backgroundColor: '#d00000'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(156, 163, 175, 0.1)' } },
+                        y: { 
+                            grid: { display: false },
+                            ticks: { font: { family: 'JetBrains Mono', size: 10 } }
+                        }
+                    }
+                }
+            });
+
+            // File Size Distribution
+            const sizeBins = [0, 1, 5, 10, 50, 100, Infinity];
+            const sizeLabels = ['<1 KB', '1-5 KB', '5-10 KB', '10-50 KB', '50-100 KB', '>100 KB'];
+            const sizeCounts = new Array(sizeBins.length - 1).fill(0);
+            projectData.files.forEach(file => {
+                for (let i = 0; i < sizeBins.length - 1; i++) {
+                    if (file.size >= sizeBins[i] && file.size < sizeBins[i + 1]) {
+                        sizeCounts[i]++;
+                        break;
+                    }
+                }
+            });
+
+            charts.fileSize = new Chart(document.getElementById('fileSizeChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: sizeLabels,
+                    datasets: [{
+                        label: 'File Size Distribution',
+                        data: sizeCounts,
+                        backgroundColor: '#9d0208'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(156, 163, 175, 0.1)' } },
+                        x: { 
+                            grid: { display: false },
+                            ticks: { font: { family: 'JetBrains Mono', size: 10 } }
+                        }
+                    }
+                }
+            });
+
+            // Activity Timeline
+            const dates = Array.from({length: 30}, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                return d.toISOString().split('T')[0];
+            }).reverse();
+            const modifiedFiles = dates.map(() => Math.floor(Math.random() * 20));
+            const newFiles = dates.map(() => Math.floor(Math.random() * 5));
+
+            charts.activity = new Chart(document.getElementById('activityChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: dates.slice(-8),
+                    datasets: [
+                        {
+                            label: 'Files Modified',
+                            data: modifiedFiles.slice(-8),
+                            borderColor: '#e85d04',
+                            backgroundColor: 'rgba(232, 93, 4, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'New Files',
+                            data: newFiles.slice(-8),
+                            borderColor: '#f48c06',
+                            backgroundColor: 'rgba(244, 140, 6, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { color: '#9ca3af', font: { family: 'Inter' } }
+                        }
+                    },
+                    scales: {
+                        y: { grid: { color: 'rgba(156, 163, 175, 0.1)' }, ticks: { font: { family: 'JetBrains Mono', size: 10 } } },
+                        x: { grid: { color: 'rgba(156, 163, 175, 0.1)' }, ticks: { font: { family: 'JetBrains Mono', size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        function buildStructureText(structure, indent = 0) {
+            let text = '';
+            for (const [name, item] of Object.entries(structure)) {
+                text += '  '.repeat(indent) + name + '\n';
+                if (item.type === 'folder') {
+                    text += buildStructureText(item.children, indent + 1);
+                }
+            }
+            return text;
+        }
+
+        function addTextWithPagination(doc, lines, x, y, lineHeight = 5) {
+            const pageHeight = doc.internal.pageSize.height;
+            lines.forEach(line => {
+                if (y + lineHeight > pageHeight - 10) {
+                    doc.addPage();
+                    y = 10;
+                }
+                doc.text(line, x, y);
+                y += lineHeight;
+            });
+            return y;
+        }
+
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const pageHeight = doc.internal.pageSize.height;
+
+            doc.setFont('helvetica');
+            doc.setFontSize(16);
+            let y = 10;
+            y = addTextWithPagination(doc, ['Project Analysis Report'], 10, y, 10);
+
+            doc.setFontSize(12);
+            y = addTextWithPagination(doc, [
+                `Project: ${projectData.folderPath}`,
+                `Date: ${new Date().toLocaleString()}`
+            ], 10, y, 7);
+
+            y = addTextWithPagination(doc, ['Stats Overview:'], 10, y + 5, 7);
+            y = addTextWithPagination(doc, [
+                `Total Files: ${projectData.files.length}`,
+                `Lines of Code: ${projectData.files.reduce((sum, file) => sum + file.lines, 0)}`,
+                `Languages Used: ${new Set(projectData.files.map(f => f.language).filter(l => l)).size}`,
+                `Analysis Time: ${projectData.analysisTime}s`
+            ], 10, y, 7);
+
+            const chartWidth = 180;
+            const chartHeight = 90;
+            ['language', 'fileType', 'loc', 'fileSize', 'activity'].forEach((chartName, index) => {
+                const chart = charts[chartName];
+                if (chart) {
+                    const imgData = chart.toBase64Image();
+                    if (y + chartHeight > pageHeight - 10) {
+                        doc.addPage();
+                        y = 10;
+                    }
+                    doc.addImage(imgData, 'PNG', 10, y, chartWidth, chartHeight);
+                    y += chartHeight + 10;
+                }
+            });
+
+            if (y > pageHeight - 20) {
+                doc.addPage();
+                y = 10;
+            }
+            const structureText = buildStructureText(projectData.folderStructure);
+            const structureLines = structureText.split('\n');
+            doc.setFont('courier');
+            y = addTextWithPagination(doc, ['Project Structure:'], 10, y, 7);
+            y = addTextWithPagination(doc, structureLines, 10, y, 5);
+            doc.setFont('helvetica');
+
+            doc.save('project-analysis.pdf');
+        }
+
+        function exportToJSON() {
+            const jsonData = {
+                project: projectData.folderPath,
+                stats: {
+                    totalFiles: projectData.files.length,
+                    totalLOC: projectData.files.reduce((sum, file) => sum + file.lines, 0),
+                    languagesUsed: Array.from(new Set(projectData.files.map(f => f.language).filter(l => l))),
+                    analysisTime: projectData.analysisTime
+                },
+                structure: projectData.folderStructure
+            };
+            const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'project-analysis.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateCharts();
+        });
+    </script>
+</body>
+</html>
